@@ -1,59 +1,63 @@
 using UnityEngine;
-using UnityEngine.Animations;
-using UnityEngine.InputSystem.XR;
-// Les commentaires seront utilisé pour expliquer le code, pour comprendre leur utilité et leur objectif dans le code
+using UnityEngine.InputSystem;
+// Les commentaires seront utilisÃ© pour expliquer le code, pour comprendre leur utilitÃ© et leur objectif dans le code
 [RequireComponent(typeof(CharacterController))]
 public class FirstPersonPlayer : MonoBehaviour
 {
     // --- VARIABLE REGLABLAS DANS L'INSPECTEUR ---
-   // Quand c'est marqué "public" c'est que c'est visible dans Unity, il est possible de modifier la valeur dans l'inspecteur.
+   // Quand c'est marquÃ© "public" c'est que c'est visible dans Unity, il est possible de modifier la valeur dans l'inspecteur.
 
-    public Transform cameraTransform; //la caméra du joueur (sa tête)
+    public Transform cameraTransform; //la camÃ©ra du joueur (sa tÃªte)
     public Light flashlight; //la lampe torche (peut rester vide)
 
     public float walkSpeed = 3.0f; // la vitesse de marche en m/s
-    public float runSpeed = 5.0f; // vitesse de course (input shift)
-    public float mouseSensitivity = 2.0f; // sensibilité de la souris
-    public float gravity = -9.81f; // la gravité terrestre
+    public float runSpeed = 5f; // vitesse de course (input shift)
+    public float mouseSensitivity = 0.1f; // sensibilitÃ© de la souris
+    public float gravity = -9.81f; // la gravitÃ© terrestre
 
     // --- VARIABLES INTERNES ---7
-   // Sans "public" : elles ne servent qu'à l'intérieur du script.
+   // Sans "public" : elles ne servent qu'Ã  l'intÃ©rieur du script.
 
-    CharacterController controller; // réf au Character Controller
-    float verticalRotation = 0f; // angle haut/bas de la caméra
+    CharacterController controller; // rÃ©f au Character Controller
+    float verticalRotation = 0f; // angle haut/bas de la camÃ©ra
     float verticalVelocity = 0f; // vitesse de chute actuelle
 
 
-    // Start() est appelée UNE fois, au lancement du jeu.
+    // Start() est appelÃ©e UNE fois, au lancement du jeu.
     void Start()
     {
-        // On récupère le Character Controller qui est sur le même objet.
+        // On rÃ©cupÃ¨re le Character Controller qui est sur le mÃªme objet.
         controller = GetComponent<CharacterController>();
 
-        // On cache le curseur et on le bloque au centre de l'écran,
-       // comme dans tous les jeux à la première personne.
+        // On cache le curseur et on le bloque au centre de l'Ã©cran,
+       // comme dans tous les jeux Ã  la premiÃ¨re personne.
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
     }
 
-    // Update est appelée à CHAQUE image (60 fois par seconde ou plus).
+    // Update est appelÃ©e Ã  CHAQUE image (60 fois par seconde ou plus).
     void Update()
     {
-        Look(); //tourner la tête avec la souris
-        Move(); //se déplacer avec le clavier
+        // Keyboard.current / Mouse.current = le clavier et la souris branchÃ©s.
+        // Ils valent "null" s'il n'y en a pas : dans ce cas on ne fait rien.
+        if (Keyboard.current == null || Mouse.current == null) return;
 
-        // Touche F: allume / éteint la lampe.
-       // GetKeyDown = vrai UNE seul fois, à l'instant où on appuie sur la touche.
-      // "!" inverse la valeur : allumé devient éteint, et inversement.
-        if (Input.GetKeyDown(KeyCode.F) && flashlight != null)
+        Look(); //tourner la tÃªte avec la souris
+        Move(); //se dÃ©placer avec le clavier
+
+        // Touche F: allume / Ã©teint la lampe.
+       // GetKeyDown = vrai UNE seul fois, Ã  l'instant oÃ¹ on appuie sur la touche.
+      // "!" inverse la valeur : allumÃ© devient Ã©teint, et inversement.
+        if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame && flashlight != null)
         {
             flashlight.enabled = !flashlight.enabled;
+            Debug.Log("F pressÃ©, lampe allumÃ©e" + flashlight.enabled);
         }
-        // Touche Echap : libère la souris (utile pour quitter le jeu 
-       // dans l'éditeur Unity). A retirer dans le jeu final si besoin.
-        if (Input.GetKeyDown(KeyCode.Escape))
+        // Touche Echap : libÃ¨re la souris (utile pour quitter le jeu 
+       // dans l'Ã©diteur Unity). A retirer dans le jeu final si besoin.
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -63,70 +67,49 @@ public class FirstPersonPlayer : MonoBehaviour
     //---REGARDER AVEC LA SOURIS---
     void Look()
     {
-        // De combien la souris a bougé depuis la dernière image.
-       // Pas besoin de multiplier par Time.delatTime ici :
-      // Unity le gère déjà pour la souris.
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+        // delta = de combien la souris a bougÃ© depuis la derniÃ¨re image.
+        // (x = gauche/droite, y = haut/bas)
+        Vector2 mouseDelta = Mouse.current.delta.ReadValue() * mouseSensitivity;
 
-        // Gauche/droite : on fait tourner TOUT le corps du joueur.
-       // C'est ce qui change la direction dans laquelle on avance.
-        transform.Rotate(0f, mouseX, 0f); // tourner le corps du joueur à gauche/droite
+        // Gauche/droite : on tourne tout le corps du joueur.
+        transform.Rotate(0f, mouseDelta.x, 0f);
 
-        // Haut/bas : on fait tourner SEULEMENT la caméra (la tête).
-       // Le "-=" est là pour le bouger la souris vers le haut
-      // fasse regarder vers le haut.
-        verticalRotation -= mouseY;
-
-        // Clamp = on bloque l'ange entre -80° et +80°.
-       // Sans ça, on pourrait faire un tour complet de la tête.
+        // Haut/bas : on tourne seulement la camÃ©ra, limitÃ©e Ã  -80Â°/+80Â°.
+        verticalRotation -= mouseDelta.y;
         verticalRotation = Mathf.Clamp(verticalRotation, -80f, 80f);
-
-        // On applique la rotation verticale à la caméra.
         cameraTransform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
     }
 
     void Move()
     {
-        // Horizontal = touche Q/D (ou A/D ou flèches gauche/droite)
-       // Vertical = touche Z/S (ou W/S ou flèches haut/bas)
-      // Chaque valeur va d -1 à 1.
-        float x = Input.GetAxis("Horizontal");
-        float z = Input.GetAxis("Vertical");
+        Keyboard kb = Keyboard.current;
 
-        // Si on maintient Shift on court, sinon on marche.
-       // Syntaxe : condition ? valeur_si_vrai : valeur_si_faux
-        float speed = Input.GetKey(KeyCode.LeftShift) ? runSpeed : walkSpeed;
+        // x = gauche/droite, z = avant/arriÃ¨re. Chaque valeur va de -1 Ã  1.
+        // Les touches sont repÃ©rÃ©es par leur POSITION physique : wKey est
+        // la touche Z sur un clavier AZERTY, aKey est la touche Q, etc.
+        float x = 0f;
+        float z = 0f;
+        if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) x += 1f;
+        if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) x -= 1f;
+        if (kb.wKey.isPressed || kb.upArrowKey.isPressed) z += 1f;
+        if (kb.sKey.isPressed || kb.downArrowKey.isPressed) z -= 1f;
 
-        // La direction du déplacement, par rapport à où regarde le joueur.
-       // transform.right = droite du joueur, transform.forward = devant lui.
+        // Shift maintenu = on court, sinon on marche.
+        float speed = kb.leftShiftKey.isPressed ? runSpeed : walkSpeed;
+
+        // Direction par rapport Ã  oÃ¹ regarde le joueur, vitesse limitÃ©e
+        // en diagonale puis multipliÃ©e par la vitesse voulue.
         Vector3 move = transform.right * x + transform.forward * z;
-
-
-        //Quand on va en diagonale, la vitesse serait plus grande.
-       // ClampMagnitude(..., 1) l'empêche de dépasser 1, puis on
-      // multiplie par la vitesse voulue.
         move = Vector3.ClampMagnitude(move, 1f) * speed;
 
-
-
-        //--- GRAVITE ---
-       // Si on touche le sol, on remet la vitesse de chute presque à zéro 
-      // (-2 plutot que 0 bien "coller" au sol).
+        // --- GRAVITÃ‰ ---
         if (controller.isGrounded && verticalVelocity < 0f)
         {
-            verticalVelocity = -2f;
+            verticalVelocity = -2f; // on "colle" au sol
         }
-        // Sinon la vitesse de chute augmente petit à petit.
-       // Time.deltaTime = temps écoulé depuis la dernière image,
-      // pour que ça marche pareil quelle que soit la puissance du PC.
         verticalVelocity += gravity * Time.deltaTime;
-
-        // On ajoute la chute au déplacement (axe Y = vertical). 
         move.y = verticalVelocity;
 
-        // On déplace enfin le joueur. Character Controller bloque
-       // tout seul contre les murs.
         controller.Move(move * Time.deltaTime);
     }
 }
